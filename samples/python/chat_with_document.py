@@ -43,7 +43,7 @@ def chat_with_ai(session_id, query):
 
 
 if __name__ == "__main__":
-    pdf_file_path = "/Users/pyq/Documents/google_file_system.pdf"
+    pdf_file_path = "your_pdf_file_path_here"
 
     try:
         session_info = create_session()
