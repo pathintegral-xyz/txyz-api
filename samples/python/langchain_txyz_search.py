@@ -112,7 +112,6 @@ class TxyzSearch(BaseTool):
 
 async def run(query, max_num_results, search_type, skip_explain):
     txyz_search = TxyzSearch()
-    query = "Large language models"
     response = await txyz_search.arun({
         "query": query, "max_num_results": max_num_results, "search_type": search_type, "skip_explain": skip_explain})
     return response
