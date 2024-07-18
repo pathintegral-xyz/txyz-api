@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "txyz-api"
+version = "0.1.0"
+description = ""
+readme = "README.md"
+authors = ["txyz.ai"]
+packages = [{include = "samples"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+requests = "^2.32.3"
+langchain = "^0.2.9"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
