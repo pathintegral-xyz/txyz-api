@@ -1,120 +1,138 @@
+"""Example code for integrating txyz search with langchain.
+
+Please follow the doc https://platform.txyz.ai to generate
+txyz api key. Assign the api key to the environment variable TXYZ_API_KEY.
+
+Example command:
+
+Search with explanation:
+
+python samples/python/langchain_txyz_search.py -q 'large language model'
+
+Search with raw results:
+
+python samples/python/langchain_txyz_search.py -q 'large language model' -s
+"""
 import argparse
 import asyncio
-from typing import Type, Optional
+from typing import Any
 
 import requests
 
-from langchain_core.pydantic_v1 import BaseModel, Field
-from langchain.callbacks.manager import (
-    AsyncCallbackManagerForToolRun,
-    CallbackManagerForToolRun,
-)
-from langchain.tools import BaseTool
+from langchain_core.pydantic_v1 import BaseModel, root_validator
+from langchain_core.utils import get_from_dict_or_env
 
 
-_API_BASE_URL = "https://api.txyz.ai/v1"
-_API_KEY = "your_api_key_here"
+_API_BASE_ENDPOINT = "https://api.txyz.ai/v1"
+
+# Uncomment the following for api key assignment, alternatively,
+# set the environment variable "TXYZ_API_KEY" in your environment
+# import os
+# os.environ["TXYZ_API_KEY"] = ""
 
 
-def search_fn(query, max_num_results, search_type):
-    """Seach function
+class TxyzClient:
+    def __init__(self, api_key, api_base_endpoint):
+        self._api_key = api_key
+        self._api_base_url =  api_base_endpoint
 
-    Args:
-        query (str): The query to search for
-        max_num_results (int): The maximum number of results to return
-        search_type (str): The type of search to perform, it can be either 'scholar' or 'web'
+    def search_fn(self, query, max_num_results, search_type):
+        """Seach function
 
-    Returns:
-        dict: The search results
+        Args:
+            query (str): The query to search for
+            max_num_results (int): The maximum number of results to return
+            search_type (str): The type of search to perform, it can be either 'scholar' or 'web'
 
-    Raises:
-        ValueError: If search_type is not either 'scholar' or 'web'
-        ValueError: If the search fails
-    """
-    if search_type not in {"scholar", "web"}:
-        raise ValueError("search_type must be either 'scholar' or 'web'")
+        Returns:
+            dict: The search results
 
-    if search_type == "scholar":
-        url = f"{_API_BASE_URL}/search/scholar"
-    else:
-        url = f"{_API_BASE_URL}/search/web"
+        Raises:
+            ValueError: If search_type is not either 'scholar' or 'web'
+            ValueError: If the search fails
+        """
+        if search_type not in {"scholar", "web"}:
+            raise ValueError("search_type must be either 'scholar' or 'web'")
 
-    headers = {"Authorization": f"Bearer {_API_KEY}"}
-    params = {
-        "query": query,
-        "max_num_results": max_num_results
-    }
+        if search_type == "scholar":
+            url = f"{self._api_base_url}/search/scholar"
+        else:
+            url = f"{self._api_base_url}/search/web"
 
-    response = requests.post(url, headers=headers, params=params)
-    if response.status_code != 200:
-        raise ValueError(f"Failed to get search results: {response.text}")
+        headers = {"Authorization": f"Bearer {self._api_key}"}
+        params = {
+            "query": query,
+            "max_num_results": max_num_results
+        }
 
-    response_json = response.json()
-    return response_json
+        response = requests.post(url, headers=headers, params=params)
+        if response.status_code != 200:
+            raise ValueError(f"Failed to get search results: {response.text}")
 
-
-def explain_fn(id):
-    """Get explanation of the search results
-
-    Args:
-        id (str): The search id
-
-    Returns:
-        dict: The explanation of the search results
-
-    Raises:
-        ValueError: If the explanation fails
-    """
-    payload = {
-        "search_id": id,
-        "response_mode": "NON_STREAMING"
-    }
-
-    headers = {
-        "Authorization": f"Bearer {_API_KEY}"
-    }
-
-    explaination = requests.post(f"{_API_BASE_URL}/search/explain", json=payload, headers=headers)
-    if explaination.status_code != 200:
-        raise ValueError(f"Failed to get explanation: {explaination.text}")
-    return explaination.json()
+        response_json = response.json()
+        return response_json
 
 
-class TxyzSearchInput(BaseModel):
-    query: str = Field(description="The query to search for")
-    max_num_results: int = Field(description="The maximum number of results to return")
-    search_type: str = Field(description="The type of search to perform, it can be either 'scholar' or 'web'")
-    skip_explain: bool = Field(description="Whether to return an explanation of the search results")
+    def explain_fn(self, id):
+        """Get explanation of the search results
+
+        Args:
+            id (str): The search id
+
+        Returns:
+            dict: The explanation of the search results
+
+        Raises:
+            ValueError: If the explanation fails
+        """
+        payload = {
+            "search_id": id,
+            "response_mode": "NON_STREAMING"
+        }
+
+        headers = {
+            "Authorization": f"Bearer {self._api_key}"
+        }
+
+        explaination = requests.post(f"{self._api_base_url}/search/explain", json=payload, headers=headers)
+        if explaination.status_code != 200:
+            raise ValueError(f"Failed to get explanation: {explaination.text}")
+        return explaination.json()
 
 
-class TxyzSearch(BaseTool):
-    name = "txyz_search"
-    description = "useful for when you need search and explain something recent and professional."
-    arg_schema: Type[BaseModel] = TxyzSearchInput
+class TxyzSearch(BaseModel):
+    client: Any
+
+    @root_validator(pre=True)
+    def validate_environment(cls, values: dict) -> dict:
+        """Validate that api key exists in environment."""
+        txyz_api_key = get_from_dict_or_env(values, "txyz_api_key", "TXYZ_API_KEY")
+
+        values['client'] = TxyzClient(txyz_api_key, _API_BASE_ENDPOINT)
+
+        return values
 
     def _run_helper(self, query, max_num_results, search_type, skip_explain):
-        search_results = search_fn(query, max_num_results, search_type)
+        search_results = self.client.search_fn(query, max_num_results, search_type)
         response = {'search_results': search_results}
         if not skip_explain:
             search_id = search_results["id"]
-            explanation = explain_fn(search_id)
+            explanation = self.client.explain_fn(search_id)
             response['explanation'] = explanation
         return response
 
-    def _run(self, query, max_num_results, search_type, skip_explain,
-             run_manager: Optional[CallbackManagerForToolRun] = None):
+    def run(self, query, max_num_results, search_type, skip_explain):
         return self._run_helper(query, max_num_results, search_type, skip_explain)
 
-    async def _arun(self, query, max_num_results, skip_explain, search_type,
-                    run_manager: Optional[AsyncCallbackManagerForToolRun] = None):
+    async def arun(self, query, max_num_results, search_type, skip_explain):
         return self._run_helper(query, max_num_results, search_type, skip_explain)
 
 
 async def run(query, max_num_results, search_type, skip_explain):
     txyz_search = TxyzSearch()
-    response = await txyz_search.arun({
-        "query": query, "max_num_results": max_num_results, "search_type": search_type, "skip_explain": skip_explain})
+    response = await txyz_search.arun(query, max_num_results, search_type, skip_explain)
     return response
+
 
 if __name__ == "__main__":
     arg_parser = argparse.ArgumentParser()
