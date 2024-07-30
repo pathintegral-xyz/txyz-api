@@ -32,11 +32,11 @@ _API_BASE_ENDPOINT = "https://api.txyz.ai/v1"
 
 
 class TxyzClient:
-    def __init__(self, api_key, api_base_endpoint):
+    def __init__(self, api_key: str, api_base_endpoint: str):
         self._api_key = api_key
         self._api_base_url =  api_base_endpoint
 
-    def search_fn(self, query, max_num_results, search_type):
+    def search_fn(self, query: str, max_num_results: int, search_type: str) -> dict:
         """Seach function
 
         Args:
@@ -73,7 +73,7 @@ class TxyzClient:
         return response_json
 
 
-    def explain_fn(self, id):
+    def explain_fn(self, id: str) -> dict:
         """Get explanation of the search results
 
         Args:
@@ -112,7 +112,8 @@ class TxyzSearch(BaseModel):
 
         return values
 
-    def _run_helper(self, query, max_num_results, search_type, skip_explain):
+    def _run_helper(self, query: str, max_num_results: int, search_type: str, skip_explain: bool) -> dict:
+        """Helper function to run the search"""
         search_results = self.client.search_fn(query, max_num_results, search_type)
         response = {'search_results': search_results}
         if not skip_explain:
@@ -121,14 +122,17 @@ class TxyzSearch(BaseModel):
             response['explanation'] = explanation
         return response
 
-    def run(self, query, max_num_results, search_type, skip_explain):
+    def run(self, query: str, max_num_results: int, search_type: str, skip_explain: bool) -> dict:
+        """Run the search"""
         return self._run_helper(query, max_num_results, search_type, skip_explain)
 
-    async def arun(self, query, max_num_results, search_type, skip_explain):
+    async def arun(self, query: str, max_num_results: int, search_type: str, skip_explain: bool) -> dict:
+        """Run the search asynchronously"""
         return self._run_helper(query, max_num_results, search_type, skip_explain)
 
 
-async def run(query, max_num_results, search_type, skip_explain):
+async def run_wrapper(query: str, max_num_results: int, search_type: str, skip_explain: bool) -> dict:
+    """Run the search"""
     txyz_search = TxyzSearch()
     response = await txyz_search.arun(query, max_num_results, search_type, skip_explain)
     return response
@@ -158,7 +162,7 @@ if __name__ == "__main__":
 
     args = arg_parser.parse_args()
 
-    txyz_llm_search_results = asyncio.run(run(
+    txyz_llm_search_results = asyncio.run(run_wrapper(
         args.query, args.max_num_results,
         args.search_type, args.skip_explain))
     print(txyz_llm_search_results)
